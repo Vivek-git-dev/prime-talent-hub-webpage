@@ -246,19 +246,71 @@
         return;
       }
 
-      // Simulate async submission
+      // hCaptcha validation — Web3Forms proxy populates a textarea[name=h-captcha-response]
+      const captchaTextarea = contactForm.querySelector('textarea[name=h-captcha-response]');
+      const captchaResponse = captchaTextarea ? captchaTextarea.value : '';
+      if (!captchaResponse) {
+        showFormError('Please complete the captcha before submitting.');
+        return;
+      }
+
+      // -----------------------------------------------------------
+      // Web3Forms integration — free email notifications for static sites
+      // Step 1: Go to https://web3forms.com and enter primetalenthub.info@gmail.com
+      // Step 2: Check your inbox and click the activation link
+      // Step 3: Copy the access key you receive and paste it below
+      // -----------------------------------------------------------
+      const WEB3FORMS_ACCESS_KEY = '5f7b13f7-4d68-44e2-8ea0-2f2419325482';
+
       const btn = contactForm.querySelector('button[type="submit"]');
       btn.disabled = true;
       btn.querySelector('span').textContent = 'Sending…';
 
-      setTimeout(() => {
-        contactForm.reset();
-        btn.disabled = false;
-        btn.querySelector('span').textContent = 'Send Enquiry';
-        formSuccess.classList.add('visible');
-        setTimeout(() => formSuccess.classList.remove('visible'), 6000);
-      }, 1200);
+      const payload = new FormData();
+      payload.append('access_key', WEB3FORMS_ACCESS_KEY);
+      payload.append('subject',    `New Enquiry from ${name} – Prime Talent Hub`);
+      payload.append('name',    name);
+      payload.append('email',   email);
+      payload.append('phone',   contactForm.elements['phone'].value.trim());
+      payload.append('company', company);
+      payload.append('service', service);
+      payload.append('message', message);
+      payload.append('from_name', 'Prime Talent Hub Website');
+      payload.append('h-captcha-response', captchaResponse);
+
+      fetch('https://api.web3forms.com/submit', { method: 'POST', body: payload })
+        .then(res => res.json())
+        .then(data => {
+          btn.disabled = false;
+          btn.querySelector('span').textContent = 'Send Enquiry';
+          if (window.hcaptcha) hcaptcha.reset();
+          if (data.success) {
+            contactForm.reset();
+            formSuccess.classList.add('visible');
+            setTimeout(() => formSuccess.classList.remove('visible'), 6000);
+          } else {
+            showFormError('Something went wrong. Please email us directly.');
+          }
+        })
+        .catch(() => {
+          btn.disabled = false;
+          btn.querySelector('span').textContent = 'Send Enquiry';
+          if (window.hcaptcha) hcaptcha.reset();
+          showFormError('Network error. Please try again or email us directly.');
+        });
     });
+  }
+
+  function showFormError(msg) {
+    const original = formSuccess.textContent;
+    formSuccess.textContent = '✗ ' + msg;
+    formSuccess.style.color = '#F87171';
+    formSuccess.classList.add('visible');
+    setTimeout(() => {
+      formSuccess.classList.remove('visible');
+      formSuccess.textContent = original;
+      formSuccess.style.color = '';
+    }, 6000);
   }
 
   function shakeForm(form) {
